@@ -3,6 +3,10 @@ const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt-nodejs');
 const cors = require('cors');
 const knex = require('knex');
+const register = require('./controllers/register');
+const signin = require('./controllers/signin');
+const profile = require('./controllers/profile');
+const image = require('./controllers/image');
 
 const db = knex({
     client: 'pg',
@@ -26,62 +30,14 @@ app.use(bodyParser.json());
 app.use(cors());
 
 
-app.put('/image', (req, res) => {
-    const {id} = req.body;
-
-    db('users').where('id', '=', id)
-    .increment('entries', 1)
-    .returning('entries')
-    .then(entries => {
-        res.json(entries[0].entries);
-    })
-    .catch(err => res.status(400).json('unable to get entries'));
-})
+app.put('/image', (req, res) => {image.handleImage(req, res, db)});
 
 // --> '/profile/id' route that will render the user info on matching with their id
-app.get('/profile/:id', (req, res) => {
+app.get('/profile/:id', (req, res) => {profile.handleProfileGet(req, res, db)});
 
-    const {id} = req.params;
-    db.select('*').from('users').where({id})
-    .then(user => {
-        if(user.length){
-            res.json(user[0])
-        }else{
-            res.status(400).json('Not found');
-        }
-    })
-    .catch(err => res.status(400).json('error getting user'));
-
-})
-//creating register route where a new user info will be added in our database 
-//from frontend
-app.post('/register', (req, res) => {
-    const { name, email, password } = req.body;
-    const hash = bcrypt.hashSync(password);
-    db.transaction(trx => {
-        trx.insert({
-            hash: hash,
-            email: email
-        })
-        .into('login')
-        .returning('email')
-        .then(loginEmail => {
-            console.log('loginEMail is :', loginEmail[0].email);
-            return trx('users')
-            .returning('*')
-            .insert({
-                email: loginEmail[0].email,
-                name: name,
-                joined: new Date() 
-            })
-            .then(user => {
-                res.json(user[0]);
-            })
-        })
-        .then(trx.commit)
-        .catch(trx.rollback);
-    })
-})
+//this is called dependency injection.
+//we are injecting whatever dependencies this handleRegister function needs
+app.post('/register', (req, res) => {register.handleRegister(req, res, db, bcrypt)})
 
 //route route that displays all the users we have in our database
 app.get('/', (req, res) => {
@@ -89,26 +45,8 @@ app.get('/', (req, res) => {
 });
 
 //creating signin route which will be a POST request
-app.post('/signin', (req, res) => {
+app.post('/signin', (req, res) => {signin.handleSignin(req, res, db, bcrypt)});
 
-    db.select('email', 'hash').from('login')
-    .where('email', '=', req.body.email)
-    .then(data => {
-        const isValid = bcrypt.compareSync(req.body.password, data[0].hash);
-        if(isValid){
-            return db.select('*').from('users')
-            .where('email', '=', req.body.email)
-            .then(user => {
-                res.json(user[0]);
-            })
-            .catch(err => res.status(400).json('unable to get user'));
-        }else{
-            res.status(400).json('wrong credentials');
-        }
-    })
-    .catch(err => res.status(400).json('wrongg credentials')); 
-})
-
-app.listen(3000, () => {
-    console.log('app is running on port 3000');
+app.listen(process.env.PORT || 3000, () => {
+    console.log(`app is running on port ${process.env.PORT}`);
 });
