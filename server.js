@@ -41,7 +41,7 @@ app.post('/register', (req, res) => {register.handleRegister(req, res, db, bcryp
 
 //route route that displays all the users we have in our database
 app.get('/', (req, res) => {
-    res.send('success')
+    res.send('it is working')
 });
 
 //creating signin route which will be a POST request
